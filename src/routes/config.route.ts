@@ -3,13 +3,13 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { dbQueries } from '../db/queries';
 import { cacheService } from '../services/cache.service';
 import { mqttService } from '../services/mqtt.service';
 import { logger } from '../utils/logger';
 import { ApiResponse, SystemConfigEntity } from '../types';
 import { ENV } from '../config/env';
-import { pool } from '../config/database';
 
 const execAsync = promisify(exec);
 
@@ -138,7 +138,8 @@ configRoutes.get('/backup', async (c) => {
 
 /**
  * POST /api/config/import
- * Multipart file upload to restore PostgreSQL database from .sql file
+ * Multipart file upload to restore PostgreSQL database.
+ * Supports BOTH plain .sql files AND compressed .sql.gz files automatically without requiring app update!
  */
 configRoutes.post('/import', async (c) => {
   try {
@@ -149,7 +150,7 @@ configRoutes.post('/import', async (c) => {
       return c.json<ApiResponse>(
         {
           success: false,
-          message: 'No valid SQL backup file uploaded',
+          message: 'No valid backup file uploaded',
         },
         400
       );
@@ -159,7 +160,17 @@ configRoutes.post('/import', async (c) => {
     const tempFilePath = path.join(tempDir, `restore_${Date.now()}.sql`);
 
     const arrayBuffer = await (file as File).arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    let buffer = Buffer.from(arrayBuffer);
+
+    // Auto-detect GZIP compression (either by .gz filename or magic bytes 0x1f 0x8b)
+    const originalName = ((file as any).name || '').toLowerCase();
+    const isGzip = originalName.endsWith('.gz') || (buffer.length > 2 && buffer[0] === 0x1f && buffer[1] === 0x8b);
+
+    if (isGzip) {
+      logger.info('Detected compressed .sql.gz file. Decompressing automatically before database restore...');
+      buffer = zlib.gunzipSync(buffer);
+    }
+
     fs.writeFileSync(tempFilePath, buffer);
 
     // Execute psql restore command
@@ -175,16 +186,18 @@ configRoutes.post('/import', async (c) => {
     const freshConfig = await dbQueries.getSystemConfig();
     cacheService.setActiveConfig(freshConfig);
 
+    logger.info('Database restored successfully from backup file!');
+
     return c.json<ApiResponse>({
       success: true,
-      message: 'Database restored successfully from SQL dump',
+      message: 'Database berhasil dipulihkan secara sempurna dari berkas backup!',
     });
   } catch (error: any) {
     logger.error('Failed to import database backup', error);
     return c.json<ApiResponse>(
       {
         success: false,
-        message: 'Failed to restore database from backup file',
+        message: 'Gagal memulihkan database dari berkas backup: ' + (error.message || String(error)),
         error: error.message || String(error),
       },
       500

@@ -29,12 +29,23 @@ if PGPASSWORD="${DB_PASS}" pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER
     TOTAL_CYCLES=$(PGPASSWORD="${DB_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT COUNT(*) FROM automation_cycles;" 2>/dev/null || echo "0")
     TOTAL_ALERTS=$(PGPASSWORD="${DB_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT COUNT(*) FROM system_alerts;" 2>/dev/null || echo "0")
 
-    CAPTION="📦 <b>SIMONLE - Backup Database Harian</b>%0A━━━━━━━━━━━━━━━━━━━━%0A📅 <b>Waktu:</b> ${DATE_READABLE}%0A🗄️ <b>Database:</b> PostgreSQL 16 (${DB_NAME})%0A📊 <b>Total Telemetri:</b> ${TOTAL_TELEMETRY} baris%0A🤖 <b>Siklus Otomasi:</b> ${TOTAL_CYCLES} siklus%0A🚨 <b>Total Alert:</b> ${TOTAL_ALERTS} peringatan%0A📁 <b>Ukuran:</b> ${FILE_SIZE} (.sql.gz)%0A✅ <b>Status:</b> Backup Berhasil Terkompresi"
+    CAPTION=$(cat << CAP_EOF
+📦 <b>SIMONLE - Backup Database Harian</b>
+━━━━━━━━━━━━━━━━━━━━
+📅 <b>Waktu:</b> ${DATE_READABLE}
+🗄️ <b>Database:</b> PostgreSQL 16 (${DB_NAME})
+📊 <b>Total Telemetri:</b> ${TOTAL_TELEMETRY} baris
+🤖 <b>Siklus Otomasi:</b> ${TOTAL_CYCLES} siklus
+🚨 <b>Total Alert:</b> ${TOTAL_ALERTS} peringatan
+📁 <b>Ukuran:</b> ${FILE_SIZE} (.sql.gz)
+✅ <b>Status:</b> Backup Berhasil & Siap Restore
+CAP_EOF
+)
 
-    curl -s -F chat_id="${CHAT_ID}" \
-            -F document=@"${FILEPATH}" \
-            -F caption="${CAPTION}" \
-            -F parse_mode="HTML" \
+    curl -s -F "chat_id=${CHAT_ID}" \
+            -F "document=@${FILEPATH}" \
+            -F "caption=${CAPTION}" \
+            -F "parse_mode=HTML" \
             "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" > /dev/null
 
     echo "[$(date)] SUCCESS: Backup ${FILENAME} sent to Telegram"
@@ -42,8 +53,19 @@ if PGPASSWORD="${DB_PASS}" pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER
     find "${BACKUP_DIR}" -name "simonle_db_backup_*.sql.gz" -type f -mtime +7 -delete
 
 else
-    ERR_MSG="⚠️ <b>PERINGATAN: Backup Database SIMONLE Gagal!</b>%0A%0AWaktu: ${DATE_READABLE}%0AServer: VPS (139.190.96.208)%0AMohon periksa PostgreSQL di server segera."
-    curl -s "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${ERR_MSG}&parse_mode=HTML" > /dev/null
+    ERR_MSG=$(cat << ERR_EOF
+⚠️ <b>PERINGATAN: Backup Database SIMONLE Gagal!</b>
+━━━━━━━━━━━━━━━━━━━━
+📅 <b>Waktu:</b> ${DATE_READABLE}
+🖥️ <b>Server:</b> VPS (139.190.96.208)
+Mohon periksa status PostgreSQL di server segera.
+ERR_EOF
+)
+    curl -s -d "chat_id=${CHAT_ID}" \
+            --data-urlencode "text=${ERR_MSG}" \
+            -d "parse_mode=HTML" \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" > /dev/null
+
     echo "[$(date)] ERROR: Backup failed!"
     exit 1
 fi
