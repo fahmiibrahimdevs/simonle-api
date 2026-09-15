@@ -12,6 +12,7 @@ import { testDatabaseConnection } from './config/database';
 import { mqttService } from './services/mqtt.service';
 import { cacheService } from './services/cache.service';
 import { dbQueries } from './db/queries';
+import { sendTelegramNotification } from './services/telegram.service';
 
 // Routes
 import { sensorRoutes } from './routes/sensor.route';
@@ -118,7 +119,29 @@ async function bootstrapServices() {
   // 3. Connect to MQTT Broker & Workers
   mqttService.init();
 
-  // 4. If running in Node.js (without Bun native server)
+  // 4. Send Startup / Restart Notification to Telegram
+  const wibTime = new Date().toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const startMsg = [
+    '🚀 <b>SIMONLE Backend Service Online</b>',
+    '━━━━━━━━━━━━━━━━━━━━',
+    '🖥️ <b>Server:</b> VPS (139.190.96.208)',
+    `🕒 <b>Waktu:</b> ${wibTime}`,
+    '🗄️ <b>Database:</b> PostgreSQL 16 (simonle_db) OK',
+    '📡 <b>MQTT:</b> Connected (103.197.188.199:1883)',
+    '🌐 <b>URL:</b> https://simonle.fahmiibrahim.my.id',
+    '✅ <b>Status:</b> Service Berhasil Di-start / Restart',
+  ].join('\n');
+
+  sendTelegramNotification(startMsg).catch((e) => {
+    logger.warn('Failed to send Telegram startup notification', e);
+  });
+
+  // 5. If running in Node.js (without Bun native server)
   if (typeof (globalThis as any).Bun === 'undefined') {
     serve(
       {
@@ -145,4 +168,3 @@ export default {
   port: ENV.PORT,
   fetch: app.fetch,
 };
-

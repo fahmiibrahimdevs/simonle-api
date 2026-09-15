@@ -15,4 +15,7 @@ export const ENV = {
   MQTT_CLIENT_ID: process.env.MQTT_CLIENT_ID || 'simonle_backend_service',
   MQTT_USERNAME: process.env.MQTT_USERNAME || 'nexaryn',
   MQTT_PASSWORD: process.env.MQTT_PASSWORD || '31750321',
+
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '8819697781:AAHHbg7V8qr2sxvZPWW7-zllgkbh235XHOY',
+  TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || '2018459980',
 };
